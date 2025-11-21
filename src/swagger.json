@@ -1,0 +1,430 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "DICRI API - Gestión de Evidencias",
+    "version": "1.0.0",
+    "description": "API RESTful para la gestión de expedientes e indicios del sistema DICRI"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3000",
+      "description": "Servidor de desarrollo"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Ingrese el token JWT obtenido del endpoint /api/auth/login"
+      }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string",
+            "description": "Tipo de error"
+          },
+          "details": {
+            "type": "string",
+            "description": "Descripción detallada del error"
+          }
+        }
+      },
+      "LoginRequest": {
+        "type": "object",
+        "required": ["email", "password"],
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "example": "tecnico@dicri.gt"
+          },
+          "password": {
+            "type": "string",
+            "example": "password123"
+          }
+        }
+      },
+      "LoginResponse": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "description": "Token JWT para autenticación"
+          },
+          "user": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "number"
+              },
+              "nombre": {
+                "type": "string"
+              },
+              "rol": {
+                "type": "string",
+                "enum": ["Tecnico", "Coordinador"]
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/api/auth/login": {
+      "post": {
+        "tags": ["Autenticación"],
+        "summary": "Iniciar sesión",
+        "description": "Autentica un usuario y retorna un token JWT",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Login exitoso",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validación fallida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Credenciales inválidas",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/expedientes": {
+      "get": {
+        "tags": ["Expedientes"],
+        "summary": "Listar expedientes",
+        "description": "Obtiene la lista de expedientes. Los técnicos solo ven sus propios expedientes.",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "estado",
+            "schema": {
+              "type": "string",
+              "enum": ["BORRADOR", "EN_REVISION", "APROBADO", "RECHAZADO"]
+            },
+            "description": "Filtrar por estado (opcional)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Lista de expedientes"
+          },
+          "401": {
+            "description": "No autorizado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Expedientes"],
+        "summary": "Crear expediente",
+        "description": "Crea un nuevo expediente. Requiere rol Técnico.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["datosGenerales"],
+                "properties": {
+                  "datosGenerales": {
+                    "type": "string",
+                    "description": "Datos generales del expediente"
+                  },
+                  "tecnicoId": {
+                    "type": "number",
+                    "description": "ID del técnico (opcional, se usa el del token si no se proporciona)"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Expediente creado exitosamente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "expedienteId": {
+                      "type": "number"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validación fallida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No autorizado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Acceso denegado - Se requiere rol Técnico",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/expedientes/{id}/review": {
+      "put": {
+        "tags": ["Expedientes"],
+        "summary": "Revisar expediente",
+        "description": "Aprueba o rechaza un expediente. Requiere rol Coordinador.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "number"
+            },
+            "description": "ID del expediente a revisar"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["status"],
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": ["APROBADO", "RECHAZADO"]
+                  },
+                  "justificacion": {
+                    "type": "string",
+                    "description": "Obligatorio si status es RECHAZADO"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Expediente revisado exitosamente"
+          },
+          "400": {
+            "description": "Validación fallida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Acceso denegado - Se requiere rol Coordinador",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Expediente no encontrado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/indicios": {
+      "post": {
+        "tags": ["Indicios"],
+        "summary": "Crear indicio",
+        "description": "Registra un nuevo indicio en un expediente. Requiere rol Técnico.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["expedienteId", "descripcion", "color", "tamano", "peso", "ubicacion"],
+                "properties": {
+                  "expedienteId": {
+                    "type": "number"
+                  },
+                  "descripcion": {
+                    "type": "string"
+                  },
+                  "color": {
+                    "type": "string"
+                  },
+                  "tamano": {
+                    "type": "string"
+                  },
+                  "peso": {
+                    "type": "number"
+                  },
+                  "ubicacion": {
+                    "type": "string"
+                  },
+                  "tecnicoId": {
+                    "type": "number",
+                    "description": "ID del técnico (opcional)"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Indicio creado exitosamente"
+          },
+          "400": {
+            "description": "Validación fallida"
+          },
+          "403": {
+            "description": "Acceso denegado - Se requiere rol Técnico"
+          }
+        }
+      }
+    },
+    "/api/indicios/{expedienteId}": {
+      "get": {
+        "tags": ["Indicios"],
+        "summary": "Listar indicios por expediente",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "expedienteId",
+            "required": true,
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Lista de indicios"
+          }
+        }
+      }
+    },
+    "/api/reports": {
+      "get": {
+        "tags": ["Reportes"],
+        "summary": "Generar reporte",
+        "description": "Obtiene un reporte de expedientes con filtros opcionales",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "start_date",
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            },
+            "description": "Fecha de inicio (YYYY-MM-DD)"
+          },
+          {
+            "in": "query",
+            "name": "end_date",
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            },
+            "description": "Fecha de fin (YYYY-MM-DD)"
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "schema": {
+              "type": "string",
+              "enum": ["APROBADO", "RECHAZADO", "EN_REVISION", "BORRADOR"]
+            },
+            "description": "Filtrar por estado"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Reporte generado exitosamente"
+          }
+        }
+      }
+    }
+  }
+}
